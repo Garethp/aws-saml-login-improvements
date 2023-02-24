@@ -1,19 +1,28 @@
-type Role = {
+import {
+  addRole,
+  changeGroupName,
+  changeRoleName,
+  removeGroup,
+  removeRole,
+} from "./actions";
+
+export type Role = {
   name: string;
   accountName: string;
   roleName: string;
 };
 
-type Group = {
+export type Group = {
   name: string;
   collapsed?: boolean;
   roles: Role[];
 };
 
 const defaultGroups: Group[] = [];
+const devMode = false;
 
 let userGroups: Group[] = [];
-let inEditMode: boolean = true;
+let inEditMode: boolean = devMode;
 let form: HTMLElement;
 let samlForm: HTMLElement;
 let isSetUp: boolean = false;
@@ -60,13 +69,10 @@ const createGroup = (id, label) => {
 
     if (!groupName) return;
 
-    setUserGroups(userGroups.filter((group) => group.name !== groupName)).then(
-      () => {
-        console.log(userGroups);
-        resetView();
-        setupGroups();
-      }
-    );
+    setUserGroups(removeGroup(userGroups, groupName)).then(() => {
+      resetView();
+      setupGroups();
+    });
 
     event.preventDefault();
     event.stopPropagation();
@@ -80,6 +86,9 @@ const createGroup = (id, label) => {
   editGroupButton.classList.add("edit-only-button");
   editGroupButton.style.paddingLeft = "5px";
   editGroupButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
     const target = event.target as HTMLElement;
     const collapse = target.parentElement;
     const oldGroupName = (
@@ -91,23 +100,26 @@ const createGroup = (id, label) => {
     if (!oldGroupName) return;
 
     const newGroupName = prompt("What should the new group name be");
+    if (!newGroupName) return;
 
-    setUserGroups(
-      userGroups.map((group) => {
-        if (group.name !== oldGroupName) return group;
-        return {
-          ...group,
-          name: newGroupName,
-        };
-      })
-    ).then(() => {
-      console.log(userGroups);
-      resetView();
-      setupGroups();
-    });
+    if (newGroupName == "Default Groups") {
+      alert(`Cannot call this group "Default Groups"`);
+      return;
+    }
 
-    event.preventDefault();
-    event.stopPropagation();
+    if (!!userGroups.find((group) => group.name === newGroupName)) {
+      alert(`The group ${newGroupName} already exists`);
+      return;
+    }
+
+    setUserGroups(changeGroupName(userGroups, oldGroupName, newGroupName)).then(
+      () => {
+        console.log(userGroups);
+        resetView();
+        setupGroups();
+      }
+    );
+
     return false;
   });
 
@@ -143,24 +155,98 @@ const resetView = () => {
   isSetUp = false;
 };
 
-const createOption = (role, labelText) => {
+const createOption = (roleArn: string, labelText: string) => {
   const groupingDiv = document.createElement("div");
   groupingDiv.classList.add("saml-role");
 
   const radioButton = document.createElement("input");
   radioButton.type = "radio";
   radioButton.name = "roleIndex";
-  radioButton.value = role;
-  radioButton.id = `custom-${role}`;
+  radioButton.value = roleArn;
+  radioButton.id = `custom-${roleArn}`;
   radioButton.classList.add("saml-radio");
 
   const label = document.createElement("label");
   label.innerText = labelText;
-  label.setAttribute("for", `custom-${role}`);
+  label.setAttribute("for", `custom-${roleArn}`);
   label.classList.add("saml-role-description");
+
+  const infoIcon = document.createElement("div");
+  infoIcon.innerText = "ℹ️";
+  infoIcon.classList.add("saml-account-name");
+  infoIcon.style.paddingLeft = "5px";
+  infoIcon.title = roleArn;
+
+  const deleteRoleButton = document.createElement("div");
+  deleteRoleButton.innerText = "❌";
+  deleteRoleButton.classList.add("saml-account-name");
+  deleteRoleButton.classList.add("group-delete-button");
+  deleteRoleButton.classList.add("edit-only-button");
+  deleteRoleButton.style.paddingLeft = "5px";
+  deleteRoleButton.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const group = target.parentElement;
+    const roleName = group.getElementsByTagName("label")[0].innerText;
+    const account = group.parentElement.parentElement;
+    const groupName = (
+      account.getElementsByClassName("saml-account-name").item(0) as HTMLElement
+    ).innerText;
+
+    setUserGroups(removeRole(userGroups, groupName, roleName)).then(() => {
+      resetView();
+      setupGroups();
+    });
+
+    event.preventDefault();
+    event.stopPropagation();
+    return false;
+  });
+
+  const editRoleButton = document.createElement("div");
+  editRoleButton.innerText = "✏️";
+  editRoleButton.classList.add("saml-account-name");
+  editRoleButton.classList.add("group-edit-button");
+  editRoleButton.classList.add("edit-only-button");
+  editRoleButton.style.paddingLeft = "5px";
+  editRoleButton.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const target = event.target as HTMLElement;
+    const group = target.parentElement;
+    const oldRoleName = group.getElementsByTagName("label")[0].innerText;
+    const account = group.parentElement.parentElement;
+    const groupName = (
+      account.getElementsByClassName("saml-account-name").item(0) as HTMLElement
+    ).innerText;
+
+    const newRoleName = prompt("What should the role's name be changed to?");
+    if (!newRoleName) return;
+
+    if (
+      !!userGroups
+        .find((group) => group.name === groupName)
+        ?.roles.find((role) => role.name === newRoleName)
+    ) {
+      alert(`Role by the name "${newRoleName}" already exists`);
+      return;
+    }
+
+    setUserGroups(
+      changeRoleName(userGroups, groupName, oldRoleName, newRoleName)
+    ).then(() => {
+      resetView();
+      setupGroups();
+    });
+
+    return false;
+  });
 
   groupingDiv.appendChild(radioButton);
   groupingDiv.appendChild(label);
+  groupingDiv.appendChild(infoIcon);
+  groupingDiv.appendChild(editRoleButton);
+  groupingDiv.appendChild(deleteRoleButton);
 
   return groupingDiv;
 };
@@ -239,6 +325,22 @@ const setupGroups = () => {
     }
   });
 
+  const helpText = document.createElement("div");
+  helpText.classList.add("saml-account");
+  helpText.style.fontSize = "17px";
+  helpText.innerHTML = `It looks like this may be your first time using this extension. To get started, click the "Edit"
+   button below and expand the "Default Groups" section. You should see ➕ buttons next to each AWS Role. Click the
+   ➕ button, and you'll be prompted for a Group Name and a User-Friendly Name for that role. Keep adding groups to suit
+   your display and selection of counts as you wish. <br /><br /> Don't worry, any groups that you add will still be
+   available to see in the "Default Groups" view`;
+
+  if (userGroups.length === 0) {
+    form.insertBefore(
+      helpText,
+      form.querySelector("#saml_form > p").nextSibling
+    );
+  }
+
   // Loop through the existing elements and add the edit buttons
   Array.from(samlForm.children).forEach((element) => {
     element.querySelectorAll(".saml-role-description").forEach((inputLabel) => {
@@ -260,16 +362,28 @@ const setupGroups = () => {
         const [_, accountName] = accountLabel.match(/^.*: (.*) \([\d]+\)$/);
 
         const groupName = prompt("Which group should this role go into?");
+        if (!groupName) return;
+
+        if (groupName == "Default Groups") {
+          alert(`Cannot name the group "Default Groups"`);
+          return;
+        }
+
         const name = prompt("What is the user-friendly name for this role?");
+        if (!name) return;
 
-        if (!userGroups.some((group) => group.name === groupName))
-          userGroups.push({ name: groupName, collapsed: false, roles: [] });
+        if (
+          !!userGroups
+            .find((group) => group.name === groupName)
+            ?.roles.find((role) => role.name === name)
+        ) {
+          alert(`Role by the name "${name}" already exists`);
+          return;
+        }
 
-        userGroups
-          .find((group) => group.name === groupName)
-          .roles.push({ accountName, roleName, name });
-
-        setUserGroups(userGroups).then(() => {
+        setUserGroups(
+          addRole(userGroups, groupName, { accountName, roleName, name })
+        ).then(() => {
           resetView();
           setupGroups();
         });
@@ -317,7 +431,7 @@ const hideShowEditButtons = () =>
   setupGroups();
 
   const editGroupButtons = document.createElement("a");
-  editGroupButtons.innerText = "Edit Groups";
+  editGroupButtons.innerText = "Edit";
   editGroupButtons.className = "css3button";
   editGroupButtons.href = "#";
   editGroupButtons.addEventListener("click", (event) => {
@@ -328,35 +442,38 @@ const hideShowEditButtons = () =>
     hideShowEditButtons();
   });
 
-  const resetGroups = document.createElement("a");
-  resetGroups.innerText = "Reset Groups";
-  resetGroups.className = "css3button";
-  resetGroups.href = "#";
-  resetGroups.addEventListener("click", async () => {
+  const clearGroups = document.createElement("a");
+  clearGroups.innerText = "Clear";
+  clearGroups.className = "css3button";
+  clearGroups.href = "#";
+  clearGroups.addEventListener("click", async () => {
     await setUserGroups(defaultGroups);
     resetView();
     setupGroups();
   });
 
-  const resetViewButton = document.createElement("a");
-  resetViewButton.innerText = "Reset";
-  resetViewButton.className = "css3button";
-  resetViewButton.href = "#";
-  resetViewButton.addEventListener("click", () => {
+  const defaultView = document.createElement("a");
+  defaultView.innerText = "Default";
+  defaultView.className = "css3button";
+  defaultView.href = "#";
+  defaultView.addEventListener("click", () => {
     resetView();
   });
 
-  const constructView = document.createElement("a");
-  constructView.innerText = "Create";
-  constructView.className = "css3button";
-  constructView.href = "#";
-  constructView.addEventListener("click", () => {
+  const setupView = document.createElement("a");
+  setupView.innerText = "Setup";
+  setupView.className = "css3button";
+  setupView.href = "#";
+  setupView.addEventListener("click", () => {
     setupGroups();
   });
 
-  document.getElementById("input_signin_button").prepend(constructView);
-  document.getElementById("input_signin_button").prepend(resetViewButton);
-  document.getElementById("input_signin_button").prepend(resetGroups);
+  if (devMode) {
+    document.getElementById("input_signin_button").prepend(setupView);
+    document.getElementById("input_signin_button").prepend(defaultView);
+    document.getElementById("input_signin_button").prepend(clearGroups);
+  }
+
   document.getElementById("input_signin_button").prepend(editGroupButtons);
 
   hideShowEditButtons();
