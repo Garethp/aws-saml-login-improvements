@@ -57,3 +57,62 @@ export const changeRoleName = (
       }),
     };
   });
+
+export const moveGroupUp = (groups: Group[], groupName: string): Group[] => {
+  const groupIndex = groups.findIndex((group) => group.name === groupName);
+  if (groupIndex > 0) {
+    const temp = groups[groupIndex - 1];
+    groups[groupIndex - 1] = groups[groupIndex];
+    groups[groupIndex] = temp;
+  }
+  return groups;
+};
+
+export const moveGroupDown = (groups: Group[], groupName: string): Group[] => {
+  const groupIndex = groups.findIndex((group) => group.name === groupName);
+  if (groupIndex < groups.length - 1 && groupIndex >= 0) {
+    const temp = groups[groupIndex + 1];
+    groups[groupIndex + 1] = groups[groupIndex];
+    groups[groupIndex] = temp;
+  }
+  return groups;
+};
+
+export const moveRoleUp = (
+  groups: Group[],
+  groupName: string,
+  roleName: string
+): Group[] => {
+  const group = groups.find((group) => group.name === groupName);
+  if (!group) {
+    return groups;
+  }
+
+  const roleIndex = group.roles.findIndex((role) => role.roleName === roleName);
+  if (roleIndex > 0) {
+    const temp = group.roles[roleIndex - 1];
+    group.roles[roleIndex - 1] = group.roles[roleIndex];
+    group.roles[roleIndex] = temp;
+  }
+
+  return groups;
+};
+
+export const moveRoleDown = (
+  groups: Group[],
+  groupName: string,
+  roleName: string
+): Group[] => {
+  const group = groups.find((group) => group.name === groupName);
+  if (!group) {
+    return groups;
+  }
+
+  const roleIndex = group.roles.findIndex((role) => role.roleName === roleName);
+  if (roleIndex < group.roles.length - 1 && roleIndex >= 0) {
+    const temp = group.roles[roleIndex + 1];
+    group.roles[roleIndex + 1] = group.roles[roleIndex];
+    group.roles[roleIndex] = temp;
+  }
+  return groups;
+};

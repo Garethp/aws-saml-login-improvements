@@ -174,7 +174,7 @@ const createOption = (roleArn: string, labelText: string) => {
   const infoIcon = document.createElement("div");
   infoIcon.innerText = "ℹ️";
   infoIcon.classList.add("saml-account-name");
-  infoIcon.style.paddingLeft = "5px";
+  infoIcon.style.paddingLeft = "10px";
   infoIcon.title = roleArn;
 
   const deleteRoleButton = document.createElement("div");
