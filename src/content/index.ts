@@ -18,6 +18,11 @@ export type Group = {
   roles: Role[];
 };
 
+if (typeof browser === "undefined") {
+  // @ts-ignore
+  var browser = chrome;
+}
+
 const defaultGroups: Group[] = [];
 const devMode = false;
 
